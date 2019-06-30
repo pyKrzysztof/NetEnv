@@ -1,6 +1,9 @@
-from paramiko import SSHClient
+import netmiko
 
 from .pyping_core import ping
+from .gui import ConsoleFrame
+
+HISTORY_LIMIT = 60
 
 
 class Device:
@@ -33,12 +36,13 @@ class Device:
 
 class SSHDevice(Device):
 
-    def __init__(self, host):
+    def __init__(self, host, visible_console=True):
         self.host = host
         self.port = 22
         self._client = None
         self._logger = Logger()
         self.connection_type = 'ssh'
+        self.console = Console(hostname=host, visible=visible_console)
 
     def set_credentials(self, username, password):
         setattr(self, 'username', username)
@@ -55,22 +59,27 @@ class SSHDevice(Device):
             if not response:
                 return 0
 
-        self._client = SSHClient()
-        self._client.load_system_host_keys()
-        self._client.connect(self.host, port=self.port, username=self.username, password=self.password)
+        self._client = netmiko.ConnectHandler(host=self.host, port=self.port, 
+                                              username=self.username, password=self.password, 
+                                              device_type=self.device_type)
 
     def close_connection(self):
         """ Closes the connection. """
-        self._client.close()
+        self._client.disconnect()
     
-    def send_command(self, command):
-        """ Sends given command over SSH. """
+    def send_command(self, commands, level=''):
+        """ 
+        Sends given command over SSH.
+        levels: 'conft-enter', 'conft-exit'.
+        """
         if not self._client:
             return 0
-
-        stdin, stdout, stderr = self._client.exec_command(command)
-        self._logger.log(stdin, stdout, stderr)
-        return stdin, stdout, stderr
+        if level == 'conft-enter':
+            self._client.send_command('conf t')
+        out = self._client.send_command(commands)
+        if level == 'conft-quit':
+            self._client.send_command('exit')
+        self._logger.log(out)
 
 
 class SerialDevice(Device):
@@ -84,13 +93,30 @@ class SerialDevice(Device):
 class Logger:
 
     def __init__(self):
-        self.inputs = []
-        self.outputs = []
-        self.errors = []
-        self.count = 0
+        self._log = []
 
-    def log(self, ins, out, err):
-        self.inputs.append(ins)
-        self.outputs.append(out)
-        self.errrors.append(err)
-        self.count += 1
+    def log(self, out):
+        self._log.append(out)
+
+
+
+class Console:
+
+    def __init__(self, hostname, visible):
+        self.history = []
+        self._is_visible = visible
+        self._hostname = hostname
+
+        if self._is_visible:
+            self.create_frame()
+
+    def create_frame(self):
+        self.frame = ConsoleFrame(None, title=self._hostname, size=(600, 400))
+        self.frame.Show()
+    
+    def update(self, message, **kwargs):
+        if HISTORY_LIMIT:
+            if len(self.history) > HISTORY_LIMIT:
+                self.history = self.history[1:]
+        self.history.append(message)
+
