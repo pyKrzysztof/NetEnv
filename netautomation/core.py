@@ -3,6 +3,7 @@ import netmiko
 from .pyping_core import ping
 from .gui import ConsoleFrame
 
+
 HISTORY_LIMIT = 60
 
 
@@ -11,7 +12,6 @@ class Device:
     username = ''
     password = ''
     device_type = 'cisco_ios'
-
 
     def check_connection(self, *args, **kwargs):
         """ 
@@ -23,7 +23,13 @@ class Device:
         ping_successful = ping(self.host, timeout=kwargs.get('timeout', 150), count=kwargs.get('count', 2)).ret_code == 0
         return ping_successful
 
+    def set_credentials(self, username, password):
+        pass
+
     def establish_connection(self, *args, **kwargs):
+        pass
+
+    def get_prompt(self):
         pass
 
     def close_connection(self):
@@ -40,15 +46,14 @@ class SSHDevice(Device):
         self.host = host
         self.port = 22
         self._client = None
-        self._logger = Logger()
         self.connection_type = 'ssh'
-        self.console = Console(hostname=host, visible=visible_console)
+        self.console = Console(hostname=host, visible=visible_console, bound_device=self)
 
     def set_credentials(self, username, password):
         setattr(self, 'username', username)
         setattr(self, 'password', password)
 
-    def establish_connection(self, do_check_connection=True):
+    def establish_connection(self, do_check_connection=True, show_console=False):
         """
         Establishes connection with the device over ssh, if user credentials match.
         if you are using higher level API,  do_check_connection  should be set to False and be handled
@@ -63,10 +68,14 @@ class SSHDevice(Device):
                                               username=self.username, password=self.password, 
                                               device_type=self.device_type)
 
-    def close_connection(self):
-        """ Closes the connection. """
-        self._client.disconnect()
-    
+        if show_console:
+            self.show_console()
+
+    def get_prompt(self):
+        if not self._client:
+            return 'not_connected' + ' '
+        return self._client.find_prompt() + ' '
+
     def send_command(self, commands, level=''):
         """ 
         Sends given command over SSH.
@@ -79,8 +88,17 @@ class SSHDevice(Device):
         out = self._client.send_command(commands)
         if level == 'conft-quit':
             self._client.send_command('exit')
-        self._logger.log(out)
 
+    def show_console(self):
+        self.console.show()
+
+    def hide_console(self):
+        self.console.hide()
+
+    def close_connection(self):
+        """ Closes the connection. """
+        self._client.disconnect()
+    
 
 class SerialDevice(Device):
 
@@ -90,33 +108,29 @@ class SerialDevice(Device):
     def send_command(self):
         pass
 
-class Logger:
-
-    def __init__(self):
-        self._log = []
-
-    def log(self, out):
-        self._log.append(out)
-
-
 
 class Console:
 
-    def __init__(self, hostname, visible):
+    def __init__(self, hostname, visible, bound_device):
         self.history = []
         self._is_visible = visible
         self._hostname = hostname
+        self.bound_device = bound_device
 
         if self._is_visible:
             self.create_frame()
 
     def create_frame(self):
-        self.frame = ConsoleFrame(None, title=self._hostname, size=(600, 400))
+        self.frame = ConsoleFrame(self.bound_device, parent=None, title=self._hostname, size=(600, 400))
+    
+    def show(self):
         self.frame.Show()
     
+    def hide(self):
+        self.frame.Hide()
+
     def update(self, message, **kwargs):
         if HISTORY_LIMIT:
             if len(self.history) > HISTORY_LIMIT:
                 self.history = self.history[1:]
         self.history.append(message)
-

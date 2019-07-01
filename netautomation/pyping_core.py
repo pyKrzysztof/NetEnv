@@ -303,7 +303,7 @@ class Ping(object):
             if self.udp:
                 current_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.getprotobyname("icmp"))
             else:
-                current_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.getprotobyname("icmp"))
+                current_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
 
             # Bind the socket to a source address
             if self.bind:
