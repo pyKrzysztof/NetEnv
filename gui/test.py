@@ -1,11 +1,11 @@
 from context import *
 
-from netautomation import SSHDevice
-from netautomation import NetEnv
+from netautomation import Automation
 
-app = NetEnv()
+import os
 
-device = SSHDevice('127.0.0.1', visible_console=True)
-device.establish_connection(do_check_connection=False)
+auto = Automation()
+path = os.path.join(os.path.dirname(__file__), 'automation.json')
+auto.set_file(path)
 
-app.MainLoop()
+auto.get_script('new vlan')

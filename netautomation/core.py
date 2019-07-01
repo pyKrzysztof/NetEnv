@@ -70,6 +70,7 @@ class SSHDevice(Device):
 
         if show_console:
             self.show_console()
+            self.console.write_to_input(self.get_prompt())
 
     def get_prompt(self):
         if not self._client:
@@ -88,12 +89,20 @@ class SSHDevice(Device):
         out = self._client.send_command(commands)
         if level == 'conft-quit':
             self._client.send_command('exit')
+        return out
 
     def show_console(self):
         self.console.show()
 
     def hide_console(self):
         self.console.hide()
+
+    def update(self):
+        command = ''
+        if self.console:
+            command = self.console.get_input()
+        out = self.send_command(command)
+
 
     def close_connection(self):
         """ Closes the connection. """
@@ -112,7 +121,6 @@ class SerialDevice(Device):
 class Console:
 
     def __init__(self, hostname, visible, bound_device):
-        self.history = []
         self._is_visible = visible
         self._hostname = hostname
         self.bound_device = bound_device
@@ -125,7 +133,15 @@ class Console:
     
     def show(self):
         self.frame.Show()
+
+    def write_to_console(self, stdin, stdout):
+        self.frame.write_to_console(stdin, stdout)
     
+    def write_to_input(self, text):
+        if not hasattr(self, 'frame'):
+            return
+        self.frame.write_to_input(text)
+
     def hide(self):
         self.frame.Hide()
 
@@ -133,4 +149,4 @@ class Console:
         if HISTORY_LIMIT:
             if len(self.history) > HISTORY_LIMIT:
                 self.history = self.history[1:]
-        self.history.append(message)
+        self.frame.append(message)
