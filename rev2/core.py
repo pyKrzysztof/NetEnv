@@ -1,7 +1,7 @@
 import netmiko
 import serial
 import json
-
+import time
 
 class Device:
     
@@ -74,6 +74,14 @@ class SerialDevice(Device):
         try:
             self.client = serial.serial_for_url(url=self.port)
             if self.client.isOpen():
+                self._write_serial('\r\n')
+                time.sleep(1)
+                print(self._read_serial())
+                self._write_serial(self.username)
+                time.sleep(1)
+                print(self._read_serial())
+                self._write_serial(self.password)
+                time.sleep(1)
                 return True
         except:
             raise
@@ -82,19 +90,21 @@ class SerialDevice(Device):
     def _read_serial(self):
         data_bytes = self.client.inWaiting()
         if data_bytes:
+            print('something was actually there!')
             return self.client.read(data_bytes)
         return ''
 
     def _write_serial(self, command):
-        self.client.write(command + '\n')
+        self.client.write(f'{command}\n'.encode('utf-8'))
 
     def get_prompt(self):
         return 'not implemented yet#'
 
-    def send_command(self, command=None):
+    def send_command(self, command=None, delay=1):
         if not command:
             return
         self._write_serial(command)
+        time.sleep(delay)
         return self._read_serial()
 
 
