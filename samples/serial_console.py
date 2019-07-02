@@ -50,54 +50,115 @@
 #     ser.read(read_bytes)
 ###############################################
 
+# import serial
+# import sys
+# import time
+
+# class Credentials:
+
+#     username = 'cisco'
+#     password = 'class'
+
+#     def __init__(self):
+#         pass
+
+
+# READ_TIMEOUT = 8
+
+
+# def main():
+
+#     credentials = Credentials()
+
+#     print("\nInitializing serial connection")
+
+    # console = serial.Serial(
+    #     port='/dev/ttyUSB0',
+    #     baudrate=9600,
+    #     parity="N",
+    #     stopbits=1,
+    #     bytesize=8,
+    #     timeout=READ_TIMEOUT
+    # )
+
+#     if not console.isOpen():
+#         print('port was not opened.')
+#         sys.exit()
+#     print('port was opened')
+#     time.sleep(2)
+#     console.write(b"\n\n")
+#     time.sleep(1)
+#     input_data = console.read(console.inWaiting())
+#     print(input_data)
+#     if b'Username' in input_data:
+#         print('username prompt')
+#         console.write(credentials.username + '\r\n')
+#     time.sleep(1)
+#     input_data = console.read(console.inWaiting())
+#     if b'Password' in input_data:
+#         print('password prompt')
+#         console.write(credentials.password + '\r\n')
+#     time.sleep(1)
+#     input_data = console.read(console.inWaiting())
+#     print(input_data)
+
+
+# if __name__ == "__main__":
+#     main()
+
+# import serial
+# import sys
+# import time
+
+# previous = None
+
+# def enterdata():
+#     global previous
+#     ser = serial.Serial('/dev/ttyUSB0', 9600)
+#     scom = input()
+#     incli = str(scom)
+#     ser.write(bytes(f'{incli}\r\n', 'utf-8'))
+#     time.sleep(0.5)
+#     while True:
+#         data = ser.read(ser.inWaiting())
+#         if previous == data:
+#             continue
+#         if (len(data) > 0):
+#             print(data.decode('utf-8'))
+#             break
+#         previous = data
+#     ser.close()
+#     enterdata()
+
+# enterdata()
+
+
 import serial
 import sys
 import time
 
-class Credentials:
-
-    username = 'cisco'
-    password = 'class'
-
-    def __init__(self):
-        pass
-
-
 READ_TIMEOUT = 8
 
-
-def main():
-
-    credentials = Credentials()
-
-    print("\nInitializing serial connection")
-
-    console = serial.Serial(
-        port='/dev/ttyUSB1',
-        baudrate=9600,
-        parity="N",
-        stopbits=1,
-        bytesize=8,
-        timeout=READ_TIMEOUT
-    )
-
-    if not console.isOpen():
-        print('port was not opened.')
-        sys.exit()
-
-    console.write("\r\n\r\n")
-    time.sleep(1)
-    input_data = console.read(console.inWaiting())
-    if 'Username' in input_data:
-        console.write(credentials.username + '\r\n')
-    time.sleep(1)
-    input_data = console.read(console.inWaiting())
-    if 'Password' in input_data:
-        console.write(credentials.password + '\r\n')
-    time.sleep(1)
-    input_data = console.read(console.inWaiting())
-    print(input_data)
+def send(ser, command):
+    ser.write(command.encode('utf-8'))
+    time.sleep(0.5)
+    data = ser.read(ser.inWaiting()).decode('utf-8')
+    return data
 
 
-if __name__ == "__main__":
-    main()
+ser = serial.Serial(
+    port='/dev/ttyUSB0',
+    baudrate=9600,
+    parity="N",
+    stopbits=1,
+    bytesize=8,
+    timeout=READ_TIMEOUT
+)
+
+if not ser.isOpen():
+    sys.exit()
+
+print(send(ser, '\n'))
+# print(send(ser, 'enable'))
+# print(send(ser, 'config terminal'))
+# print(send(ser, 'hostname R2'))
