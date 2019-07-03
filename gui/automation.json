@@ -1,7 +1,0 @@
-{
-    "new vlan": {
-        "parameters": "number, name",
-        "commands": "vlan |number|, name |name|"
-    }
-
-}

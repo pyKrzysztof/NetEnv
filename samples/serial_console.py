@@ -1,164 +1,68 @@
-# import sys
-
-# from context import *
-
-# from rev2 import SerialDevice
-# from rev2 import SerialCommandHandler
-
-# if __name__ == '__main__':
-#     # check with 'sudo screen /dev/ttyUSB<n> 9600' or 
-#     # '/dev/ttyS<n> 9600' if you have serial interface.
-#     device = SerialDevice(port='/dev/ttyUSB1')
-#     device.set_credentials('cisco', 'class')
-
-#     handler = SerialCommandHandler('commands.json')
-#     handler.bind_device(device)
-
-#     connected = device.establish_connection()
-#     if not connected:
-#         sys.exit()
-
-#     while True:
-#         stdin = input(device.get_prompt() + ' ')
-#         commands = handler.translate(stdin)
-#         stdout = handler.execute_commands(commands)
-#         if not stdout:
-#             continue
-#         for out in stdout:
-#             print(out)
-
-###############################################
-# import serial
-# import sys
-
-# ser = serial.Serial(
-#     port='/dev/ttyUSB1', 
-#     baudrate=9600,
-#     parity='N',
-#     stopbits=1,
-#     bytesize=8,
-#     timeout=8
-# )
-
-# if not ser.isOpen():
-#     sys.exit()
-
-# ser.write('\n') # try '\r\n'
-# read_bytes = ser.inWaiting()
-# print(read_bytes)
-# if read_bytes > 0:
-#     ser.read(read_bytes)
-###############################################
-
-# import serial
-# import sys
-# import time
-
-# class Credentials:
-
-#     username = 'cisco'
-#     password = 'class'
-
-#     def __init__(self):
-#         pass
-
-
-# READ_TIMEOUT = 8
-
-
-# def main():
-
-#     credentials = Credentials()
-
-#     print("\nInitializing serial connection")
-
-    # console = serial.Serial(
-    #     port='/dev/ttyUSB0',
-    #     baudrate=9600,
-    #     parity="N",
-    #     stopbits=1,
-    #     bytesize=8,
-    #     timeout=READ_TIMEOUT
-    # )
-
-#     if not console.isOpen():
-#         print('port was not opened.')
-#         sys.exit()
-#     print('port was opened')
-#     time.sleep(2)
-#     console.write(b"\n\n")
-#     time.sleep(1)
-#     input_data = console.read(console.inWaiting())
-#     print(input_data)
-#     if b'Username' in input_data:
-#         print('username prompt')
-#         console.write(credentials.username + '\r\n')
-#     time.sleep(1)
-#     input_data = console.read(console.inWaiting())
-#     if b'Password' in input_data:
-#         print('password prompt')
-#         console.write(credentials.password + '\r\n')
-#     time.sleep(1)
-#     input_data = console.read(console.inWaiting())
-#     print(input_data)
-
-
-# if __name__ == "__main__":
-#     main()
-
-# import serial
-# import sys
-# import time
-
-# previous = None
-
-# def enterdata():
-#     global previous
-#     ser = serial.Serial('/dev/ttyUSB0', 9600)
-#     scom = input()
-#     incli = str(scom)
-#     ser.write(bytes(f'{incli}\r\n', 'utf-8'))
-#     time.sleep(0.5)
-#     while True:
-#         data = ser.read(ser.inWaiting())
-#         if previous == data:
-#             continue
-#         if (len(data) > 0):
-#             print(data.decode('utf-8'))
-#             break
-#         previous = data
-#     ser.close()
-#     enterdata()
-
-# enterdata()
-
-
-import serial
 import sys
-import time
 
-READ_TIMEOUT = 8
-
-def send(ser, command):
-    ser.write(command.encode('utf-8'))
-    time.sleep(0.5)
-    data = ser.read(ser.inWaiting()).decode('utf-8')
-    return data
+from context import *
+from rev2 import SerialDevice
 
 
-ser = serial.Serial(
-    port='/dev/ttyUSB0',
-    baudrate=9600,
-    parity="N",
-    stopbits=1,
-    bytesize=8,
-    timeout=READ_TIMEOUT
-)
+class DeviceNotBoundException(Exception):
+    pass
 
-if not ser.isOpen():
+class NotImplementedYet(Exception):
+    pass
+
+class Handler:
+    
+    def __init__(self):
+        pass
+
+    def bind_device(self, device):
+        self.device = device
+
+    def execute(self, command):
+        if command.startswith('!'):
+            return self.handle_auto_command(command[1:])
+        return self.handle_regular_command(command)
+
+    def handle_regular_command(self, command, ):
+        if not hasattr(self, 'device'):
+            raise DeviceNotBoundException
+        out = self.device.send_command(command, new_line=True, do_print=False)
+        if 'show' in command:
+            for _ in range(10):
+                if out.strip().endswith('--More--'):
+                    out = out.replace(' --More--', '')
+                    temp = self.device.send_command(' ', new_line=False, do_print=False, delay=.1)
+                    out += temp
+                    # Next result is wrongly formatted (ALWAYS), you can later find '\r\n' in previous line
+                    # and from that calculate accurate indices from current space. (This is true for show ip int br)
+                temp = self.device.send_command('', new_line=False, do_print=False, delay=.5)
+                if temp.strip().endswith('--More--'):
+                    temp = temp.replace(' --More--', '')
+                    out += temp
+                    temp = self.device.send_command(' ', new_line=False, do_print=False, delay=.1)
+                    # Next result is wrongly formatted (ALWAYS), you can later find '\r\n' in previous line
+                    # and from that calculate accurate indices from current space. (This is true for show ip int br)
+                out += temp
+        return out
+
+    def handle_auto_command(self, command):
+        raise NotImplementedYet
+
+
+device = SerialDevice('COM5')
+device.set_credentials('cisco', 'class')
+connected = device.connect()
+
+if not connected:
+    print('Port is closed. Exiting.')
     sys.exit()
+print('Connection successful.')
 
-print(send(ser, '\n'))
-# print(send(ser, 'enable'))
-# print(send(ser, 'config terminal'))
-# print(send(ser, 'hostname R2'))
+
+handler = Handler()
+handler.bind_device(device)
+ints = handler.execute('show ip int')
+print(ints)
+
+
+handler.execute('exit')

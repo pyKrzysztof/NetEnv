@@ -1,152 +1,297 @@
 import netmiko
+import serial
+import json
+import time
+import sys
 
-from .pyping_core import ping
-from .gui import ConsoleFrame
+ATTEMPTS = 20
 
-
-HISTORY_LIMIT = 60
-
+class CredentialsNotProvided(Exception):
+    pass
 
 class Device:
-
-    username = ''
-    password = ''
-    device_type = 'cisco_ios'
-
-    def check_connection(self, *args, **kwargs):
-        """ 
-        Returns 1 if connection can be established, 0 otherwise. It uses IMCP.
-        Keyword arguments are:
-        - timeout [ms],
-        - count [int] 
-        """
-        ping_successful = ping(self.host, timeout=kwargs.get('timeout', 150), count=kwargs.get('count', 2)).ret_code == 0
-        return ping_successful
+    
+    def __init__(self, host):
+        self.host = host
 
     def set_credentials(self, username, password):
-        pass
+        self.username = username
+        self.password = password
 
-    def establish_connection(self, *args, **kwargs):
+    def set_device_type(self, device_type):
+        self.device_type = device_type
+
+    def establish_connection(self):
         pass
 
     def get_prompt(self):
         pass
 
+    def send_command(self, command):
+        pass
+
+    def enter_conft(self):
+        pass
+
+    def exit_conft(self):
+        pass
+
     def close_connection(self):
         pass
-
-    def send_command(self):
-        pass
-    
-
 
 class SSHDevice(Device):
 
-    def __init__(self, host, visible_console=True):
-        self.host = host
-        self.port = 22
-        self._client = None
-        self.connection_type = 'ssh'
-        self.console = Console(hostname=host, visible=visible_console, bound_device=self)
-
-    def set_credentials(self, username, password):
-        setattr(self, 'username', username)
-        setattr(self, 'password', password)
-
-    def establish_connection(self, do_check_connection=True, show_console=False):
-        """
-        Establishes connection with the device over ssh, if user credentials match.
-        if you are using higher level API,  do_check_connection  should be set to False and be handled
-        by your solution. (As in sample GUI)
-        """
-        if do_check_connection:
-            response = self.check_connection()
-            if not response:
-                return 0
-
-        self._client = netmiko.ConnectHandler(host=self.host, port=self.port, 
-                                              username=self.username, password=self.password, 
-                                              device_type=self.device_type)
-
-        if show_console:
-            self.show_console()
-            self.console.write_to_input(self.get_prompt())
+    def establish_connection(self):
+        host = self.host
+        un = getattr(self, 'username', 'cisco')
+        pd = getattr(self, 'password', 'class')
+        dt = getattr(self, 'device_type', 'cisco_ios')
+        self.client = netmiko.ConnectHandler(host=host, username=un, 
+                                             password=pd, device_type=dt)
+    
+    def send_command(self, command=None, config=False):
+        if not command:
+            return
+        if config:
+            return self.client.send_config_set(command)
+        if not config:
+            return self.client.send_command(command)
 
     def get_prompt(self):
-        if not self._client:
-            return 'not_connected' + ' '
-        return self._client.find_prompt() + ' '
-
-    def send_command(self, commands, level=''):
-        """ 
-        Sends given command over SSH.
-        levels: 'conft-enter', 'conft-exit'.
-        """
-        if not self._client:
-            return 0
-        if level == 'conft-enter':
-            self._client.send_command('conf t')
-        out = self._client.send_command(commands)
-        if level == 'conft-quit':
-            self._client.send_command('exit')
-        return out
-
-    def show_console(self):
-        self.console.show()
-
-    def hide_console(self):
-        self.console.hide()
-
-    def update(self):
-        command = ''
-        if self.console:
-            command = self.console.get_input()
-        out = self.send_command(command)
-
+        return self.client.find_prompt()
 
     def close_connection(self):
-        """ Closes the connection. """
-        self._client.disconnect()
-    
+        self.client.disconnect()
 
-class SerialDevice(Device):
+class SerialDevice:
 
-    def __init__(self, port):
+    def __init__(self, port, baudrate=9600, parity='N', stopbits=1, bytesize=8, timeout=8):
         self.port = port
+        self.baudrate = baudrate
+        self.parity = parity
+        self.stopbits = stopbits
+        self.bytesize = bytesize
+        self.timeout = timeout
+    
+    def serial_protocol_config(self):
+        platform = sys.platform
+        if platform == 'win32':
+            return
+        self.serial.setDTR(True)
+        self.serial.setRTS(False)
 
-    def send_command(self):
+    def set_credentials(self, username, password):
+        self._username = username
+        self._password = password
+
+    def get_credentials(self):
+        if not hasattr(self, '_username') and not hasattr(self, '_password'):
+            raise CredentialsNotProvided
+        return self._username, self._password
+
+    def _login(self):
+        un, pd = self.get_credentials()
+        for _ in range(ATTEMPTS):
+            command = '\r\n'.encode('utf-8')
+            self.serial.write(command)
+            time.sleep(.5)
+            out = self.serial.read(self.serial.inWaiting()).decode('utf-8', 'ignore')
+            if not out.strip().endswith('Username:'):
+                continue
+            self.serial.write(f'{un}\n'.encode('utf-8'))
+            time.sleep(.5)
+            out = self.serial.read(self.serial.inWaiting()).decode('utf-8', 'ignore')
+            if not out.strip().endswith('Password:'):
+                continue
+            self.serial.write(f'{pd}\n'.encode('utf-8'))
+            time.sleep(.5)
+            out = self.serial.read(self.serial.inWaiting()).decode('utf-8', 'ignore')
+            return 1
+        return 0
+
+    def _is_logged_in(self, output=None):
+        if not output:
+            self.write('', new_line=False)
+            output = self.read()
+        if '>' in output or '#' in output:
+            return 1
+        return 0
+
+    def connect(self):
+        self.serial = serial.Serial(
+            port=self.port,
+            baudrate=self.baudrate,
+            parity=self.parity,
+            stopbits=self.stopbits,
+            bytesize=self.bytesize,
+            timeout=self.timeout
+        )
+        self.serial_protocol_config()
+
+        is_open = self.serial.isOpen()
+        if not is_open:
+            sys.exit()
+
+        self.serial.flushInput()
+
+        for _ in range(5):
+            self.write('\r\n', new_line=False)
+            time.sleep(.5)
+            out = self.read()
+            if self._is_logged_in(out):
+                return 1
+            if out.endswith('Username:'):
+                return self._login()
+
+        if self._is_logged_in():
+            return 1
+        return 0
+
+    def send_command(self, command, new_line=True, delay=0.5, do_print=True):
+        self.write(command, new_line)
+        time.sleep(delay)
+        out = self.read().replace(command, '')
+        if do_print:
+            print(out)
+        return out
+
+    def read(self):
+        out = self.serial.read(self.serial.inWaiting()).decode('utf-8', 'ignore')
+        return out #NOTE I removed the .strip() from here, if something doesn't work. that's the reason!
+
+    def write(self, command, new_line):
+        if new_line:
+            command = f'{command}\n'
+        command = command.encode('utf-8')
+        self.serial.write(command)
+
+
+class SSHCommandHandler:
+
+    """ 
+    Handles the commands and automation. 
+    Levels are:
+    0 - (unaccessable, raises an exception.)
+    1 - (privilaged mode (enable))
+    2 - (configuration mode (conf t))
+    3 - (sub conf t)
+    """
+
+    level = 1
+    device = None
+    
+    def __init__(self, automation_file_path=None):
+        self.automation_handler = AutomationHandler()
+        if not automation_file_path:
+            return
+        self.automation_handler.set_file(automation_file_path)
+
+    def bind_device(self, device):
+        self.device = device
+
+    def set_level(self, level):
+        self.level = level
+
+    def translate(self, message):
+        # translate message into command / commands here.
+        message = message.strip()
+        enter_conf_t = message == 'conf t' or \
+                       message == 'configure terminal' or \
+                       message == 'configure t' or \
+                       message == 'conf term' or \
+                       message == 'config term'
+        if enter_conf_t:
+            return ('-1', )
+        if message.startswith('>'):
+            commands = self.automation_handler.translate(message[1:])
+            return commands
+        return [message, ] 
+        
+
+    def execute_commands(self, commands):
+        # pass all commands to device.
+        try:
+            commands, level = commands
+            if int(level) == 2:
+                return [self.device.send_command(commands, config=True), ]
+        except:
+            pass
+        out = []
+        if not commands:
+            return ['Wrong command.', ]
+        elif commands[0] == '-1':
+            return ['Do not enter configuration terminal!\nRun config commands as \'> [command]\' if you must.\nWrite automation.json file, load it and execute commands from there.', ]
+        for command in commands:
+            out.append(self.device.send_command(command))
+
+        return out
+
+class SerialCommandHandler(SSHCommandHandler):
+
+    def translate(self, message):
+        if message.startswith('>'):
+            commands = self.automation_handler.translate(message[1:])
+            return commands
+        return [message, ]
+
+    def execute_commands(self, commands):
+        # pass all commands to device.
+        try:
+            commands, level = commands
+            if int(level) == 2:
+                self.device.send_command('conf t')
+        except:
+            pass
+        out = []
+        if not commands:
+            return ['Wrong command.', ]
+        elif commands[0] == '-1':
+            return ['Do not enter configuration terminal!\nRun config commands as \'> [command]\' if you must.\nWrite automation.json file, load it and execute commands from there.', ]
+        for command in commands:
+            out.append(self.device.send_command(command))
+
+        try:    
+            if int(level) == 2:    
+                self.device.send_command('end')
+        except:    
+            pass
+
+        return out
+
+class AutomationHandler:
+
+    commands = None
+
+    def __init__(self):
         pass
 
+    def set_file(self, filepath):
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+            self.proccess_data(data)
 
-class Console:
+    def proccess_data(self, data):
+        self.commands = data
 
-    def __init__(self, hostname, visible, bound_device):
-        self._is_visible = visible
-        self._hostname = hostname
-        self.bound_device = bound_device
-
-        if self._is_visible:
-            self.create_frame()
-
-    def create_frame(self):
-        self.frame = ConsoleFrame(self.bound_device, parent=None, title=self._hostname, size=(600, 400))
-    
-    def show(self):
-        self.frame.Show()
-
-    def write_to_console(self, stdin, stdout):
-        self.frame.write_to_console(stdin, stdout)
-    
-    def write_to_input(self, text):
-        if not hasattr(self, 'frame'):
+    def translate(self, command):
+        # command ->  "<command> <param1> <param2>"
+        found = False
+        for comm in self.commands:
+            if comm in command:
+                parameters = command[len(comm)+1:].split()
+                found = True
+                break
+        if not found:
+            return ([command, ], '2')
+        if not len(parameters) == len(self.commands[comm]['parameters']):
             return
-        self.frame.write_to_input(text)
+        mod_commands = []
+        parameters = list(zip(self.commands[comm]['parameters'], parameters))
+        for command in self.commands[comm]['commands']:
+            mod_command = command
+            for name, value in parameters:
+                mod_command = mod_command.replace(f'|{name}|', value, -1)
+            
+            mod_commands.append(mod_command)
+        return (mod_commands, self.commands[comm]['level'])
 
-    def hide(self):
-        self.frame.Hide()
-
-    def update(self, message, **kwargs):
-        if HISTORY_LIMIT:
-            if len(self.history) > HISTORY_LIMIT:
-                self.history = self.history[1:]
-        self.frame.append(message)
