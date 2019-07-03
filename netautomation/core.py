@@ -4,9 +4,15 @@ import json
 import time
 import sys
 
-ATTEMPTS = 20
+ATTEMPTS = 10
 
 class CredentialsNotProvided(Exception):
+    pass
+
+class DeviceNotBoundException(Exception):
+    pass
+
+class NotImplementedYet(Exception):
     pass
 
 class Device:
@@ -225,13 +231,6 @@ class SSHCommandHandler:
 
         return out
 
-
-class DeviceNotBoundException(Exception):
-    pass
-
-class NotImplementedYet(Exception):
-    pass
-
 class Handler:
     
     def __init__(self):
@@ -306,4 +305,3 @@ class AutomationHandler:
             
             mod_commands.append(mod_command)
         return (mod_commands, self.commands[comm]['level'])
-

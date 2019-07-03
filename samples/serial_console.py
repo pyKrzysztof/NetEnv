@@ -1,23 +1,33 @@
 import sys
 
 from context import *
-from rev2 import SerialDevice
+
+from netautomation import SerialDevice
+from netautomation import Handler
 
 
-device = SerialDevice('COM5')
-device.set_credentials('cisco', 'class')
-connected = device.connect()
-
-if not connected:
-    print('Port is closed. Exiting.')
-    sys.exit()
-print('Connection successful.')
+PORT = 'COM5'
+BAUDRATE = 9600
 
 
-handler = Handler()
-handler.bind_device(device)
-ints = handler.execute('show ip int')
-print(ints)
+def main():
+    device = SerialDevice(PORT, BAUDRATE)
+    handler = Handler()
+    handler.bind_device(device)
 
+    device.set_credentials('cisco', 'class')
 
-handler.execute('exit')
+    connected = device.connect()
+
+    if not connected:
+        print('Port is closed. Exiting.')
+        sys.exit()
+    print('Connection successful.')
+
+    ints = handler.execute('show ip int')
+    print(ints)
+
+    handler.execute('exit')
+
+if __name__ == '__main__':
+    main()
