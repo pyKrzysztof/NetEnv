@@ -165,7 +165,6 @@ class SerialDevice:
         command = command.encode('utf-8')
         self.serial.write(command)
 
-
 class SSHCommandHandler:
 
     """ 
@@ -226,37 +225,50 @@ class SSHCommandHandler:
 
         return out
 
-class SerialCommandHandler(SSHCommandHandler):
 
-    def translate(self, message):
-        if message.startswith('>'):
-            commands = self.automation_handler.translate(message[1:])
-            return commands
-        return [message, ]
+class DeviceNotBoundException(Exception):
+    pass
 
-    def execute_commands(self, commands):
-        # pass all commands to device.
-        try:
-            commands, level = commands
-            if int(level) == 2:
-                self.device.send_command('conf t')
-        except:
-            pass
-        out = []
-        if not commands:
-            return ['Wrong command.', ]
-        elif commands[0] == '-1':
-            return ['Do not enter configuration terminal!\nRun config commands as \'> [command]\' if you must.\nWrite automation.json file, load it and execute commands from there.', ]
-        for command in commands:
-            out.append(self.device.send_command(command))
+class NotImplementedYet(Exception):
+    pass
 
-        try:    
-            if int(level) == 2:    
-                self.device.send_command('end')
-        except:    
-            pass
+class Handler:
+    
+    def __init__(self):
+        pass
 
+    def bind_device(self, device):
+        self.device = device
+
+    def execute(self, command):
+        if command.startswith('!'):
+            return self.handle_auto_command(command[1:])
+        return self.handle_regular_command(command)
+
+    def handle_regular_command(self, command, ):
+        if not hasattr(self, 'device'):
+            raise DeviceNotBoundException
+        out = self.device.send_command(command, new_line=True, do_print=False)
+        if 'show' in command:
+            for _ in range(10):
+                if out.strip().endswith('--More--'):
+                    out = out.replace(' --More--', '')
+                    temp = self.device.send_command(' ', new_line=False, do_print=False, delay=.1)
+                    out += temp
+                    # Next result is wrongly formatted (ALWAYS), you can later find '\r\n' in previous line
+                    # and from that calculate accurate indices from current space. (This is true for show ip int br)
+                temp = self.device.send_command('', new_line=False, do_print=False, delay=.5)
+                if temp.strip().endswith('--More--'):
+                    temp = temp.replace(' --More--', '')
+                    out += temp
+                    temp = self.device.send_command(' ', new_line=False, do_print=False, delay=.1)
+                    # Next result is wrongly formatted (ALWAYS), you can later find '\r\n' in previous line
+                    # and from that calculate accurate indices from current space. (This is true for show ip int br)
+                out += temp
         return out
+
+    def handle_auto_command(self, command):
+        raise NotImplementedYet
 
 class AutomationHandler:
 
