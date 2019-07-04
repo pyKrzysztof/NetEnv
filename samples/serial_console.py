@@ -5,7 +5,6 @@ from context import *
 from netautomation import SerialDevice
 from netautomation import Handler
 
-
 PORT = 'COM5'
 BAUDRATE = 9600
 
