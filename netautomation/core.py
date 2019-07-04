@@ -1,67 +1,79 @@
-import netmiko
+import paramiko
+import select
 import serial
 import json
 import time
 import sys
 
-ATTEMPTS = 20
+
+ATTEMPTS = 10
+
+AUTH_ERROR = -16
+GENERAL_FAILURE = -8
+
 
 class CredentialsNotProvided(Exception):
     pass
 
-class Device:
-    
-    def __init__(self, host):
-        self.host = host
+class DeviceNotBoundException(Exception):
+    pass
 
+class NotImplementedYet(Exception):
+    pass
+
+class SSHDevice:
+
+    def __init__(self, host, port=22):
+        self.host = host
+        self.port = port
+        self.client = paramiko.SSHClient()
+        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
     def set_credentials(self, username, password):
         self.username = username
         self.password = password
 
-    def set_device_type(self, device_type):
-        self.device_type = device_type
+    def get_credentials(self):
+        if not hasattr(self, 'username') and not hasattr(self, 'password'):
+            raise CredentialsNotProvided
+        return self.username, self.password
 
-    def establish_connection(self):
-        pass
+    def clear_credentials(self):
+        setattr(self, 'username', None)
+        setattr(self, 'password', None)
 
-    def get_prompt(self):
-        pass
-
-    def send_command(self, command):
-        pass
-
-    def enter_conft(self):
-        pass
-
-    def exit_conft(self):
-        pass
-
-    def close_connection(self):
-        pass
-
-class SSHDevice(Device):
-
-    def establish_connection(self):
-        host = self.host
-        un = getattr(self, 'username', 'cisco')
-        pd = getattr(self, 'password', 'class')
-        dt = getattr(self, 'device_type', 'cisco_ios')
-        self.client = netmiko.ConnectHandler(host=host, username=un, 
-                                             password=pd, device_type=dt)
+    def connect(self):
+        un, pd = self.get_credentials()
+        for _ in range(ATTEMPTS):
+            try:
+                self.client.connect(
+                    hostname=self.host, 
+                    port=self.port,
+                    username=un, 
+                    password=pd
+                )
+                self.clear_credentials()
+                return 1
+            except paramiko.AuthenticationException:
+                return AUTH_ERROR
+            except:
+                time.sleep(.5)
+        return GENERAL_FAILURE
     
-    def send_command(self, command=None, config=False):
-        if not command:
-            return
-        if config:
-            return self.client.send_config_set(command)
-        if not config:
-            return self.client.send_command(command)
+    def send_command(self, command):
+        out = ''
+        _, stdout, _ = self.client.exec_command(command)
+        # return 0
+        while not stdout.channel.exit_status_ready():
+            if stdout.channel.recv_ready():
+                rl, _, _ = select.select([stdout.channel], [], [], 0)
+                if len(rl) > 0:
+                    temp = stdout.channel.recv(1024)
+                    out += temp.decode('utf-8')
+        return out
 
-    def get_prompt(self):
-        return self.client.find_prompt()
-
-    def close_connection(self):
-        self.client.disconnect()
+    def close(self):
+        self.client.close()
 
 class SerialDevice:
 
@@ -165,98 +177,44 @@ class SerialDevice:
         command = command.encode('utf-8')
         self.serial.write(command)
 
-
-class SSHCommandHandler:
-
-    """ 
-    Handles the commands and automation. 
-    Levels are:
-    0 - (unaccessable, raises an exception.)
-    1 - (privilaged mode (enable))
-    2 - (configuration mode (conf t))
-    3 - (sub conf t)
-    """
-
-    level = 1
-    device = None
+class Handler:
     
-    def __init__(self, automation_file_path=None):
-        self.automation_handler = AutomationHandler()
-        if not automation_file_path:
-            return
-        self.automation_handler.set_file(automation_file_path)
+    def __init__(self):
+        pass
 
     def bind_device(self, device):
         self.device = device
 
-    def set_level(self, level):
-        self.level = level
+    def execute(self, command):
+        if command.startswith('!'):
+            return self.handle_auto_command(command[1:])
+        return self.handle_regular_command(command)
 
-    def translate(self, message):
-        # translate message into command / commands here.
-        message = message.strip()
-        enter_conf_t = message == 'conf t' or \
-                       message == 'configure terminal' or \
-                       message == 'configure t' or \
-                       message == 'conf term' or \
-                       message == 'config term'
-        if enter_conf_t:
-            return ('-1', )
-        if message.startswith('>'):
-            commands = self.automation_handler.translate(message[1:])
-            return commands
-        return [message, ] 
-        
-
-    def execute_commands(self, commands):
-        # pass all commands to device.
-        try:
-            commands, level = commands
-            if int(level) == 2:
-                return [self.device.send_command(commands, config=True), ]
-        except:
-            pass
-        out = []
-        if not commands:
-            return ['Wrong command.', ]
-        elif commands[0] == '-1':
-            return ['Do not enter configuration terminal!\nRun config commands as \'> [command]\' if you must.\nWrite automation.json file, load it and execute commands from there.', ]
-        for command in commands:
-            out.append(self.device.send_command(command))
-
+    def handle_regular_command(self, command, ):
+        if not hasattr(self, 'device'):
+            raise DeviceNotBoundException
+        out = self.device.send_command(command, new_line=True, do_print=False)
+        if 'show' in command:
+            for _ in range(10):
+                if out.strip().endswith('--More--'):
+                    out = out.replace(' --More--', '')
+                    temp = self.device.send_command(' ', new_line=False, do_print=False, delay=.1)
+                    out += temp
+                    # Next result is wrongly formatted (ALWAYS), you can later find '\r\n' in previous line
+                    # and from that calculate accurate indices from current space. (This is true for show ip int br)
+                temp = self.device.send_command('', new_line=False, do_print=False, delay=.5)
+                if temp.strip().endswith('--More--'):
+                    temp = temp.replace(' --More--', '')
+                    out += temp
+                    temp = self.device.send_command(' ', new_line=False, do_print=False, delay=.1)
+                    # Next result is wrongly formatted (ALWAYS), you can later find '\r\n' in previous line
+                    # and from that calculate accurate indices from current space. (This is true for show ip int br)
+                out += temp
         return out
 
-class SerialCommandHandler(SSHCommandHandler):
+    def handle_auto_command(self, command):
+        raise NotImplementedYet
 
-    def translate(self, message):
-        if message.startswith('>'):
-            commands = self.automation_handler.translate(message[1:])
-            return commands
-        return [message, ]
-
-    def execute_commands(self, commands):
-        # pass all commands to device.
-        try:
-            commands, level = commands
-            if int(level) == 2:
-                self.device.send_command('conf t')
-        except:
-            pass
-        out = []
-        if not commands:
-            return ['Wrong command.', ]
-        elif commands[0] == '-1':
-            return ['Do not enter configuration terminal!\nRun config commands as \'> [command]\' if you must.\nWrite automation.json file, load it and execute commands from there.', ]
-        for command in commands:
-            out.append(self.device.send_command(command))
-
-        try:    
-            if int(level) == 2:    
-                self.device.send_command('end')
-        except:    
-            pass
-
-        return out
 
 class AutomationHandler:
 
@@ -294,4 +252,3 @@ class AutomationHandler:
             
             mod_commands.append(mod_command)
         return (mod_commands, self.commands[comm]['level'])
-

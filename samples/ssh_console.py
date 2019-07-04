@@ -1,30 +1,38 @@
+from getpass import getpass
 import sys
-import os
 
 from context import *
+from netautomation import SSHDevice
+from netautomation import AUTH_ERROR
+from netautomation import GENERAL_FAILURE
 
-from rev2 import SSHDevice
-from rev2 import SSHCommandHandler
+def main():
+    device = SSHDevice('192.168.0.12')
+
+    un = input('Username: ')
+    pd = getpass('Password: ')
+    device.set_credentials(un, pd)
+    connected = device.connect()
+
+    if connected == AUTH_ERROR:
+        print('Authentication Error.')
+        sys.exit()
+    elif connected == GENERAL_FAILURE:
+        print('General Failure.')
+        sys.exit()
+
+    try:
+        while True:
+            stdin = input('> ').strip()
+            if stdin == '!exit':
+                break
+            out = device.send_command(stdin)
+            print(out)
+    except Exception as e:
+        print(e)
+        pass
+    device.close()
 
 
 if __name__ == '__main__':
-    device = SSHDevice(host='192.168.10.254')
-    device.set_device_type('cisco_ios')
-    device.set_credentials('cisco', 'class')
-    
-    handler = SSHCommandHandler('commands.json')
-    handler.bind_device(device)
-
-    device.establish_connection()
-    try:
-        while True:
-            stdin = input(device.get_prompt() + ' ')
-            commands = handler.translate(stdin)
-            stdout = handler.execute_commands(commands)
-            if not stdout:
-                continue
-            for out in stdout:
-                print(out)
-    except:
-        device.close_connection()
-        raise
+    main()
