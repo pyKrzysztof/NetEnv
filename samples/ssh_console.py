@@ -6,12 +6,18 @@ from netautomation import SSHDevice
 from netautomation import AUTH_ERROR
 from netautomation import GENERAL_FAILURE
 
+
+HOST = '192.168.0.12'
+
 def main():
-    device = SSHDevice('192.168.0.12')
+    device = SSHDevice(HOST)
 
     un = input('Username: ')
     pd = getpass('Password: ')
     device.set_credentials(un, pd)
+    del un
+    del pd
+    
     connected = device.connect()
 
     if connected == AUTH_ERROR:
