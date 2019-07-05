@@ -57,6 +57,7 @@ class SSHDevice:
             except paramiko.AuthenticationException:
                 return AUTH_ERROR
             except:
+                # raise
                 time.sleep(.5)
         return GENERAL_FAILURE
     
