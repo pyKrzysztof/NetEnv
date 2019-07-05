@@ -7,7 +7,7 @@ from netautomation import AUTH_ERROR
 from netautomation import GENERAL_FAILURE
 
 
-HOST = '192.168.0.12'
+HOST = '192.168.10.1'
 
 def main():
     device = SSHDevice(HOST)
@@ -26,6 +26,7 @@ def main():
     elif connected == GENERAL_FAILURE:
         print('General Failure.')
         sys.exit()
+    print('Connection successful.')
 
     try:
         while True:

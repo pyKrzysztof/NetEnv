@@ -23,10 +23,17 @@ def main():
         sys.exit()
     print('Connection successful.')
 
-    ints = handler.execute('show ip int')
-    print(ints)
-
-    handler.execute('exit')
+    try:
+        while True:
+            stdin = input('>').strip()
+            if stdin == '!exit':
+                handler.execute('exit')
+                break
+            stdout = handler.execute(stdin)
+            print(stdout)
+    except:
+        handler.execute('exit')
+        raise
 
 if __name__ == '__main__':
     main()
