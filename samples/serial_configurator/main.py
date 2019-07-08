@@ -16,6 +16,12 @@ MIN_WIDTH = 350 + 600
 MIN_HEIGHT = 300 + 300
 
 
+def get_default_port():
+    if sys.platform == 'win32':
+        return 'COM0'
+    if sys.platform == 'linux':
+
+
 class Connection:
 
     def __init__(self, port, baudrate, username=None, password=None):
