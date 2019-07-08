@@ -9,6 +9,7 @@ from netautomation import GENERAL_FAILURE
 
 HOST = '192.168.10.1'
 
+
 def main():
     device = SSHDevice(HOST)
 
