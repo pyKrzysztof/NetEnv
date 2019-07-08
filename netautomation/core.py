@@ -58,7 +58,6 @@ class SSHDevice:
             except paramiko.AuthenticationException:
                 return AUTH_ERROR
             except:
-                # raise
                 time.sleep(.5)
         return GENERAL_FAILURE
     
@@ -181,6 +180,9 @@ class SerialDevice:
             command = f'{command}\n'
         command = command.encode('utf-8')
         self.serial.write(command)
+
+    def close(self):
+        pass
 
 class Handler:
     
