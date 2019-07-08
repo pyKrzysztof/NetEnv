@@ -42,9 +42,9 @@ if __name__ == '__main__':
     address = input('Address: ').strip()
     un = input('Username: ').strip()
     pd = input('Password: ').strip()
-    result = get_config()
+    result = get_config(address, un, pd)
     if result:
         print('config.text read')
-    result = get_vlans()
+    result = get_vlans(address, un, pd)
     if result:
         print('vlan.dat read')
