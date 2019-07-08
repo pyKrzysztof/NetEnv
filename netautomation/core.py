@@ -10,6 +10,7 @@ ATTEMPTS = 10
 
 AUTH_ERROR = -16
 GENERAL_FAILURE = -8
+WRONG_PORT = -32
 
 
 class CredentialsNotProvided(Exception):
@@ -131,14 +132,17 @@ class SerialDevice:
         return 0
 
     def connect(self):
-        self.serial = serial.Serial(
-            port=self.port,
-            baudrate=self.baudrate,
-            parity=self.parity,
-            stopbits=self.stopbits,
-            bytesize=self.bytesize,
-            timeout=self.timeout
-        )
+        try:
+            self.serial = serial.Serial(
+                port=self.port,
+                baudrate=self.baudrate,
+                parity=self.parity,
+                stopbits=self.stopbits,
+                bytesize=self.bytesize,
+                timeout=self.timeout
+            )
+        except serial.serialutil.SerialException:
+            return WRONG_PORT
         self.serial_protocol_config()
 
         is_open = self.serial.isOpen()
