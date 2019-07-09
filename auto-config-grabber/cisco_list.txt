@@ -1,0 +1,2 @@
+192.168.10.1 port admin password
+192.168.10.2 port admin password
