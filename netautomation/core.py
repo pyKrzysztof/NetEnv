@@ -11,6 +11,7 @@ ATTEMPTS = 10
 AUTH_ERROR = -16
 GENERAL_FAILURE = -8
 WRONG_PORT = -32
+TIMEOUT = -64
 
 
 class CredentialsNotProvided(Exception):
@@ -43,28 +44,37 @@ class SSHDevice:
         setattr(self, 'username', None)
         setattr(self, 'password', None)
 
-    def connect(self):
+    def connect(self, timeout=3, single_attempt=False):
         un, pd = self.get_credentials()
         for _ in range(ATTEMPTS):
             try:
                 self.client.connect(
-                    hostname=self.host, 
+                    hostname=self.host,
                     port=self.port,
-                    username=un, 
-                    password=pd
+                    username=un,
+                    password=pd,
+                    auth_timeout=timeout
                 )
                 self.clear_credentials()
+                self._status = 1
                 return 1
             except paramiko.AuthenticationException:
-                return AUTH_ERROR
+                self._status = AUTH_ERROR
+                return 0
+            except TimeoutError:
+                self._status = TIMEOUT
+                return 0
             except:
+                if single_attempt:
+                    self._status = TIMEOUT
+                    return 0
                 time.sleep(.5)
-        return GENERAL_FAILURE
+        self._status = GENERAL_FAILURE
+        return 0
     
     def send_command(self, command):
         out = ''
         _, stdout, _ = self.client.exec_command(command)
-        # return 0
         while not stdout.channel.exit_status_ready():
             if stdout.channel.recv_ready():
                 rl, _, _ = select.select([stdout.channel], [], [], 0)
@@ -75,6 +85,11 @@ class SSHDevice:
 
     def close(self):
         self.client.close()
+
+    @property
+    def status(self):
+        return self._status
+
 
 class SerialDevice:
 
