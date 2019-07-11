@@ -18,6 +18,8 @@ class SSHConnectionException(Exception):
     pass
 
 PATH = os.path.abspath(os.path.join(os.path.join(os.path.dirname(__file__), 'files'), 'cisco'))
+with open(os.path.abspath(os.path.join(os.path.dirname(__file__), 'tftp_path')), 'r') as f:
+    TFTP_PATH = f.read()
 
 def get_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -76,6 +78,7 @@ def get_vlans(*args, path):
         resp = shell.recv(9999)
         output = resp.decode('ascii').split(',')
         print(''.join(output))
+    os.system(f'bash move.sh {os.path.join(TFTP_PATH, "vlan.dat")} {os.path.join(path, "vlan.dat")}')
     # os.system(f'bash move.sh config.text {os.path.join(path, "config.text")}')
     return 1
 
@@ -109,6 +112,7 @@ def get_config(*args, path):
         output = resp.decode('ascii').split(',')
         print(''.join(output))
 
+    os.system(f'bash move.sh {os.path.join(TFTP_PATH, "config.text")} {os.path.join(path, "config.text")}')
     # os.system(f'bash move.sh config.text {os.path.join(path, "config.text")}')
     return 1
 
