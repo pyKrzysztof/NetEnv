@@ -30,6 +30,12 @@ def create_files(address):
     except:    pass
     return backup_folder_path
 
+def get_vlans(*args):
+    pass
+
+def get_config(*args):
+    pass
+
 def get_backup_files(*args):
     get_vlans(*args)
     get_config(*args)
@@ -49,7 +55,6 @@ def main():
         try:
             get_backup_files(*device)
         except Exception as e:
-            raise
             failures[device[0]] = e
     with open('failures.txt', 'w') as f:
         for key, value in failures.items():
