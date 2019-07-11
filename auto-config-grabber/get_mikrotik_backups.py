@@ -67,12 +67,16 @@ def get_latest_backup(filenames, args):
 
 def get_backup_file(*args):
     target_file = None
+    t = 0
     while not target_file:
+        t += 1
         filenames = get_filenames(*args)
         target_file = get_latest_backup(filenames, args)
         if target_file is not None:
             break
-        
+        if t > 20:
+            raise
+
     path = create_files(args[0])
     new_path = os.path.abspath(os.path.join(path, target_file))
     # print(new_path)
