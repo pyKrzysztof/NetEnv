@@ -23,10 +23,11 @@ def create_files(address):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    now = datetime.now()
-    backup_folder_name = f'{now.day}/{now.month}/{now.year}-{now.hour}:{now.minute}'
+    now = datetime.datetime.now()
+    backup_folder_name = f'{now.day}_{now.month}_{now.year}-{now.hour}_{now.minute}_{now.second}'
     backup_folder_path = os.path.join(path, backup_folder_name)
-    os.makedirs(backup_folder_path)
+    try:    os.makedirs(backup_folder_path)
+    except:    pass
     return backup_folder_path
 
 def get_filenames(*args):
@@ -36,33 +37,19 @@ def get_filenames(*args):
     is_ok = device.connect(single_attempt=True)
     if not is_ok:
         raise SSHConnectionException(device.status)
-    out = device.send_command('file print where type="backup"')
-    device.send_command('quit')
-    return out
+    out = device.send_command('file print detail where type="backup"')
+    temp_devices = [entry.replace('\r\n', '', -1) for entry in out.split('\r\n\r\n') if entry]
+    devices = [device.split()[1:] for device in temp_devices]
+    return devices
 
-def get_latest_backup(filenames):
-    data = filenames.split('\n')
-    rows = len(data)
-    data = [row.split() for row in data]
-
-    # filtering out the first row containing column names
-    data = data[1:]
-
-    # filtering out the size,
-    data = [(entry[0], entry[1], entry[2], entry[4], entry[5]) for entry in data]
-
-    # index:    0    1      2                3                       4
-    # type:    idx, name, type, "str(mon)/int(day)/int(year)", "hr:min:sec" of creation
-
-    # filtering the non-backup files.
-    data = [entry for entry in data if entry[2] == 'backup']
+def get_latest_backup(filenames, args):
 
     # getting the dates
     top_time_val = None
     top_idx = None
-    for idx, entry in enumerate(data):
-        combined_date_string = entry[3] + '-' + entry[4]
-        time_object = datetime.datetime.strptime(combined_date_string, format='%b/%d/%Y-%h:%m:%s')
+    for idx, entry in enumerate(filenames):
+        combined_date_string = entry[3].split('=')[1].title() + '-' + entry[4]
+        time_object = datetime.datetime.strptime(combined_date_string, '%b/%d/%Y-%H:%M:%S')
         if not top_time_val:
             top_time_val = time_object
             top_idx = idx
@@ -71,41 +58,49 @@ def get_latest_backup(filenames):
         if time_object > top_time_val:
             top_time_val = time_object
             top_idx = idx
-    
-    filename = data[top_idx][1]
-    return filename
+    try:
+        filename = filenames[top_idx][0].split('=')[1].replace('"', '', -1)
+    except:
+        return None
+    else:
+        return filename
 
 def get_backup_file(*args):
-    filenames = get_filenames(*args)
-    target_file = get_latest_backup(filenames)
+    target_file = None
+    while not target_file:
+        filenames = get_filenames(*args)
+        target_file = get_latest_backup(filenames, args)
+        if target_file is not None:
+            break
+        
     path = create_files(args[0])
-    command = ["sshpass", "-f", f"<(printf '%s\n' {args[3]})", "sftp", "-P", f"{args[1]}", f"{args[2]}@{args[0]}:{target_file}"]
-    subprocess.run(command)
-    command = [f'mv {target_file} {os.path.abspath(os.path.join(path, target_file))}']
-    subprocess.run(command)
+    new_path = os.path.abspath(os.path.join(path, target_file))
+    # print(new_path)
+    command = f'bash get_mikrotik_file.sh {args[0]} {args[1]} {args[2]} {args[3]} {target_file} {new_path}'
+    print(os.system(command))
+    
     return 1
 
 def main():
     failures = {}
-    with open('mt_list.txt', 'r') as f:
+    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'mt_list.txt'), 'r') as f:
         data = f.readlines()
-        devices = [entry.split() for entry in data]
+        try:
+            devices = [entry.split() for entry in data]
+        except IndexError:
+            devices = [devices]
+            devices = [entry.split() for entry in data]
         for device in devices:
             device[1] = int(device[1])
     for device in devices:
         try:
             get_backup_file(*device)
         except Exception as e:
+            raise
             failures[device[0]] = e
     with open('failures.txt', 'w') as f:
         for key, value in failures.items():
-            f.write(key + ':', value)
+            f.write(f'{key}: {value}')
 
 if __name__ == '__main__':
     main()
-    # args = 'address', 'port', 'username', 'password'
-    # target_file = 'test'
-    # command = ["sshpass", "-f", f"<(printf '%s\n' {args[3]})", "sftp", "-P", f"{args[1]}", f"{args[2]}@{args[0]}:{target_file}"]
-    # print(command)
-
-# sshpass -f <(printf '%s\n' 'test') sftp -P 22 admin@192.168.88.1:MikroTik-11011970-1525.backup
