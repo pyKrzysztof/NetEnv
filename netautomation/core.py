@@ -44,7 +44,7 @@ class SSHDevice:
         setattr(self, 'username', None)
         setattr(self, 'password', None)
 
-    def connect(self, timeout=3, single_attempt=False):
+    def connect(self, timeout=15, single_attempt=False):
         un, pd = self.get_credentials()
         for _ in range(ATTEMPTS):
             try:
@@ -53,7 +53,7 @@ class SSHDevice:
                     port=self.port,
                     username=un,
                     password=pd,
-                    auth_timeout=timeout
+                    timeout=timeout
                 )
                 self.clear_credentials()
                 self._status = 1

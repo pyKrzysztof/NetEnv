@@ -74,16 +74,30 @@ def get_backup_file(*args):
         target_file = get_latest_backup(filenames, args)
         if target_file is not None:
             break
-        if t > 20:
+        if t > 5:
             raise
 
     path = create_files(args[0])
     new_path = os.path.abspath(os.path.join(path, target_file))
-    # print(new_path)
+    
     command = f'bash get_mikrotik_file.sh {args[0]} {args[1]} {args[2]} {args[3]} {target_file} {new_path}'
-    print(os.system(command))
+    os.system(command)
+    with open(os.path.join(path, 'export.txt'), 'w') as f:
+        config = export_config(*args)
+        f.write(config)
+        print('Exported Config.')
     
     return 1
+
+def export_config(*args):
+    addr, port, username, password = args
+    device = SSHDevice(addr, port)
+    device.set_credentials(username, password)
+    is_ok = device.connect(single_attempt=True)
+    if not is_ok:
+        raise SSHConnectionException(device.status)
+    out = device.send_command('export')
+    return out
 
 def main():
     failures = {}
@@ -99,9 +113,13 @@ def main():
     for device in devices:
         try:
             get_backup_file(*device)
+            print('#############################')
         except Exception as e:
-            raise
+            print('#############################')
+            print(f'Connection to {device[0]} terminated with code:', e)
             failures[device[0]] = e
+        finally:
+            print('#############################\n')
     with open('failures.txt', 'w') as f:
         for key, value in failures.items():
             f.write(f'{key}: {value}')
