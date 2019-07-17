@@ -79,15 +79,29 @@ def get_backup_file(*args):
 
     path = create_files(args[0])
     new_path = os.path.abspath(os.path.join(path, target_file))
-    
-    command = f'bash get_mikrotik_file.sh {args[0]} {args[1]} {args[2]} {args[3]} {target_file} {new_path}'
+
+    command = get_script(False, None)
+    # command = get_script(True, target_file)
+    command += f"{args[0]} {args[1]} {args[2]} {args[3]} {target_file} {new_path}"    
     os.system(command)
+
     with open(os.path.join(path, 'export.txt'), 'w') as f:
         config = export_config(*args)
         f.write(config)
         print('Exported Config.')
-    
     return 1
+
+def get_script(win_script_file=False, target=None):
+    if sys.platform == 'win32':
+        if not win_script_file:
+            command = 'get_mikrotik_file.bat '
+        else:
+            with open('script.txt', 'w') as script:
+                script.write(f'get {target}\nbye')
+            command = 'win_scripted_get_mt_file.bat '
+    else:
+        command = 'bash get_mikrotik_file.sh '
+    return command
 
 def export_config(*args):
     addr, port, username, password = args
