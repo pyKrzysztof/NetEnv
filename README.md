@@ -15,7 +15,7 @@ Each class has the following methods:
 - `send_command(command)`
 - `close()`
 
-EXAMPLE - Connecting to a MikroTik and exporting it's config:
+### EXAMPLE - Connecting to a MikroTik and exporting it's config:
 
     device = SSHDevice('192.168.88.1', port=22)
     device.set_credentials(admin, ninjapassword)
@@ -25,7 +25,8 @@ EXAMPLE - Connecting to a MikroTik and exporting it's config:
     
     out = device.send_command('export')
     device.close()
-    
+
+#### NOTE: Some cisco devices do not support sending more than one command per SSH connection. Working on an elegant fix.
 
 ### auto-config-grabber Explained
 It is a dedicated script I wrote for my boss, it collects vlan.dat and config.text from provided Cisco Switches,
