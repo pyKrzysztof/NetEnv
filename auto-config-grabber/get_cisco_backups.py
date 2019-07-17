@@ -18,8 +18,8 @@ class SSHConnectionException(Exception):
     pass
 
 PATH = os.path.abspath(os.path.join(os.path.join(os.path.dirname(__file__), 'files'), 'cisco'))
-with open(os.path.abspath(os.path.join(os.path.dirname(__file__), 'tftp_path')), 'r') as f:
-    TFTP_PATH = f.read()
+with open(os.path.abspath(os.path.join(os.path.dirname(__file__), 'sftp_path')), 'r') as f:
+    SFTP_PATH = f.read()
 
 def get_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -32,6 +32,7 @@ def get_ip():
     finally:
         s.close()
     return IP
+
 
 IP = get_ip()
 
@@ -65,7 +66,7 @@ def get_vlans(*args, path):
     resp = shell.recv(9999)
     output = resp.decode('ascii').split(',')
 
-    shell.send(f'copy flash:vlan.dat tftp://{IP}/vlan.dat')
+    shell.send(f'copy flash:vlan.dat sftp://{IP}/vlan.dat')
     shell.send('\n')
     time.sleep(1)
     resp = shell.recv(9999)
@@ -78,7 +79,9 @@ def get_vlans(*args, path):
         resp = shell.recv(9999)
         output = resp.decode('ascii').split(',')
         print(''.join(output))
-    os.system(f'bash move.sh {os.path.join(TFTP_PATH, "vlan.dat")} {os.path.join(path, "vlan.dat")}')
+    move_file(os.path.join(SFTP_PATH, "vlan.dat"), 
+              os.path.join(path, "vlan.dat"))
+    # os.system(f'bash move.sh {os.path.(SFTP_PATH, "vlan.dat")} {os.path.join(path, "vlan.dat")}')
     # os.system(f'bash move.sh config.text {os.path.join(path, "config.text")}')
     return 1
 
@@ -112,9 +115,18 @@ def get_config(*args, path):
         output = resp.decode('ascii').split(',')
         print(''.join(output))
 
-    os.system(f'bash move.sh {os.path.join(TFTP_PATH, "config.text")} {os.path.join(path, "config.text")}')
+    move_file(os.path.join(SFTP_PATH, "config.text"), 
+              os.path.join(path, "config.text"))
+    # os.system(f'bash move.sh {os.path.join(SFTP_PATH, "config.text")} {os.path.join(path, "config.text")}')
     # os.system(f'bash move.sh config.text {os.path.join(path, "config.text")}')
     return 1
+
+def move_file(old_path, new_path):
+    if sys.platform == 'win32':
+        command = f'move.bat {old_path} {new_path}'
+    else:
+        command = f'bash move.sh {old_path} {new_path}'
+    return os.system(command)
 
 def get_backup_files(*args):
     path = create_files(args[0])
@@ -144,4 +156,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # print(IP)

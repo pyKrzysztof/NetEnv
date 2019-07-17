@@ -32,7 +32,7 @@ Each class has the following methods:
 It is a dedicated script I wrote for my boss, it collects vlan.dat and config.text from provided Cisco Switches,
 the most recent backups from all listed MikroTik Routers and their 'export' output.
 To use:
-1) Set up a local tftp server. (On your local machine, where you would use this script.)
+1) Set up a local sftp server. (On your local machine, where you would use this script.)
 2) To both cisco (cisco_list) and mikrotik (mt_list) lists add the information of your devices in the following way:
  `address port username password`
 3) run both `get_cisco_backups.py` and `get_mikrotik_backups.py`
